@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>YouTube Browser</title>
+  <style>
+    :root{
+      --yt-bg:#0f0f0f;--yt-elev:#181818;--yt-elev2:#202020;--yt-text:#f1f1f1;--yt-sub:#aaaaaa;--yt-red:#ff0033;--yt-border:#2a2a2a
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:var(--yt-bg);color:var(--yt-text);font:14.5px/1.45 Roboto, system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif}
+    a{color:inherit;text-decoration:none}
+
+    .app{display:grid;grid-template-rows:auto 1fr;min-height:100vh}
+
+    /* === TOP BAR (YouTube-like) === */
+    header{position:sticky;top:0;z-index:30;background:rgba(15,15,15,.95);backdrop-filter:saturate(1.2) blur(6px);border-bottom:1px solid var(--yt-border)}
+    .topbar{display:grid;grid-template-columns:180px 1fr;align-items:center;gap:.75rem;padding:.6rem .9rem}
+    .left{display:flex;align-items:center;gap:.6rem}
+    .center{display:flex;align-items:center;gap:.5rem}
+    .logo{display:flex;align-items:center;gap:.45rem;font-weight:800;letter-spacing:.2px}
+    .logo .play{width:22px;height:16px;border-left:14px solid var(--yt-red);border-top:8px solid transparent;border-bottom:8px solid transparent;filter:drop-shadow(0 0 12px rgba(255,0,51,.25))}
+    .logo span{opacity:.95}
+
+    .searchbar{flex:1;display:flex;align-items:center}
+    .searchbar input{flex:1;background:var(--yt-bg);border:1px solid var(--yt-border);color:var(--yt-text);padding:.7rem 1rem;border-radius:999px 0 0 999px;outline:none}
+    .searchbar button{border:1px solid var(--yt-border);border-left:none;background:var(--yt-elev2);color:#fff;padding:.68rem 1rem;border-radius:0 999px 999px 0;cursor:pointer}
+
+    /* === LAYOUT === */
+    .layout{display:grid;grid-template-columns:240px 1fr;gap:0}
+    @media (max-width:980px){.layout{grid-template-columns:1fr}}
+
+    /* === SIDEBAR === */
+    .sidebar{border-right:1px solid var(--yt-border);background:var(--yt-elev);min-height:calc(100vh - 60px);position:sticky;top:60px}
+    .nav{display:flex;flex-direction:column;padding:.5rem}
+    .nav a{display:flex;align-items:center;gap:.75rem;padding:.55rem .65rem;border-radius:.6rem;color:#ddd}
+    .nav a:hover{background:#1c1c1c}
+
+    /* === FILTER CHIPS === */
+    .filters{position:sticky;top:60px;z-index:10;background:var(--yt-bg);border-bottom:1px solid var(--yt-border)}
+    .chips{display:flex;gap:.5rem;overflow:auto;padding:.6rem .9rem}
+    .chip{white-space:nowrap;background:#202225;color:#e7e7e7;border:1px solid var(--yt-border);padding:.32rem .7rem;border-radius:999px;font-size:.9rem;cursor:pointer}
+    .chip.active{background:#fff;color:#111;border-color:#fff}
+
+    main{padding:1rem}
+
+    /* === GRID (home/videos) === */
+    .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem}
+    @media (max-width:1200px){.grid{grid-template-columns:repeat(3,1fr)}}
+    @media (max-width:900px){.grid{grid-template-columns:repeat(2,1fr)}}
+    @media (max-width:560px){.grid{grid-template-columns:1fr}}
+
+    .card{background:transparent;border-radius:.8rem;overflow:hidden;cursor:pointer}
+    .thumb{position:relative;aspect-ratio:16/9;background:#0b0b0b;border-radius:.8rem;overflow:hidden;border:1px solid var(--yt-border)}
+    .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+    .duration{position:absolute;right:.5rem;bottom:.5rem;background:rgba(0,0,0,.7);color:#fff;padding:.2rem .45rem;border-radius:.35rem;font-size:.78rem}
+
+    .meta{display:grid;grid-template-columns:40px 1fr;gap:.7rem;margin-top:.6rem}
+    .avatar{width:40px;height:40px;border-radius:50%;background:#1a1a1a;border:1px solid var(--yt-border);overflow:hidden}
+    .avatar img{width:100%;height:100%;object-fit:cover}
+    .title{font-weight:650;margin:.1rem 0 .2rem;font-size:1rem}
+    .muted{color:var(--yt-sub);font-size:.9rem}
+
+    /* === CHANNEL CARD === */
+    .channel-card{display:flex;align-items:center;gap:1rem;padding:.8rem;border:1px solid var(--yt-border);border-radius:.8rem;background:var(--yt-elev)}
+    .channel-card .avatar{width:56px;height:56px}
+    .badge{font-size:.75rem;border:1px solid var(--yt-border);background:#1d1d1d;padding:.12rem .4rem;border-radius:.4rem;margin-left:.4rem;color:#cfcfcf}
+
+    .actions{display:flex;justify-content:center;margin:1rem 0}
+    .btn{background:var(--yt-elev2);border:1px solid var(--yt-border);padding:.7rem 1rem;border-radius:.6rem;color:#var(--yt-text);cursor:pointer}
+
+    /* Player modal */
+    .modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);z-index:50}
+    .modal.open{display:flex}
+    .modal-card{width:min(1080px,92vw);background:#000;border:1px solid var(--yt-border);border-radius:1rem;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+    .modal-head{display:flex;align-items:center;justify-content:space-between;padding:.8rem 1rem;border-bottom:1px solid var(--yt-border);background:#0f0f0f}
+    .modal-title{font-weight:700}
+    .player{aspect-ratio:16/9;width:100%}
+    .close{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:.5rem;font-weight:600;color:#fff}
+    .toast{position:fixed;right:1rem;bottom:1rem;background:#111625;border:1px solid var(--yt-border);padding:.6rem .8rem;border-radius:.6rem;color:#var(--yt-text);opacity:0;transform:translateY(8px);transition:.25s}
+    .toast.show{opacity:1;transform:none}
+
+    /* === CHANNEL PAGE === */
+    .channel-header{display:grid;gap:1rem;border:1px solid var(--yt-border);background:linear-gradient(0deg,#121212,#101010);padding:1rem;border-radius:.8rem;margin-bottom:1rem}
+    .channel-row{display:flex;gap:1rem;align-items:center}
+    .channel-banner{width:100%;height:140px;background:#0b0b0b;border:1px solid var(--yt-border);border-radius:.6rem;overflow:hidden}
+    .channel-banner img{width:100%;height:100%;object-fit:cover}
+    .channel-avatar{width:80px;height:80px;border-radius:50%;overflow:hidden;border:1px solid var(--yt-border);background:#151515}
+    .channel-title{font-size:1.4rem;font-weight:800}
+    .channel-sub{color:var(--yt-sub)}
+    .backlink{display:inline-flex;align-items:center;gap:.5rem;padding:.4rem .6rem;border:1px solid var(--yt-border);border-radius:.6rem;background:#161616;cursor:pointer}
+  </style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="topbar">
+      <div class="left">
+        <div class="logo" title="YouTube Browser"><div class="play"></div><span>YouBrowse</span></div>
+      </div>
+      <div class="center">
+        <form class="searchbar" id="searchForm">
+          <input id="searchInput" type="search" placeholder="Search" required />
+          <button type="submit">🔍</button>
+        </form>
+      </div>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar" id="sidebar">
+      <nav class="nav">
+        <a href="#" data-chip="popular">🏠 Home</a>
+        <a href="#" data-chip="music">🎵 Music</a>
+        <a href="#" data-chip="gaming">🎮 Gaming</a>
+        <a href="#" data-chip="news">📰 News</a>
+        <a href="#" data-chip="sports">🏅 Sports</a>
+        <a href="#" data-chip="learning">📚 Learning</a>
+      </nav>
+    </aside>
+
+    <section>
+      <div class="filters" id="filters">
+        <div class="chips" id="chips">
+          <button class="chip active" data-filter="all">All</button>
+          <button class="chip" data-filter="videos">Videos</button>
+          <button class="chip" data-filter="channels">Channels</button>
+        </div>
+      </div>
+      <main>
+        <div class="grid" id="grid"></div>
+        <div class="actions"><button class="btn" id="loadMoreBtn" hidden>Load more</button></div>
+      </main>
+    </section>
+  </div>
+</div>
+
+<!-- Player modal -->
+<div class="modal" id="playerModal" role="dialog" aria-modal="true">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div class="modal-title" id="modalTitle">Playing…</div>
+      <button class="close" id="closeModal">✕ Close</button>
+    </div>
+    <iframe id="player" class="player" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ======= Setup =======
+const API_KEY = "AIzaSyAhnnUyh3tlAz7DJfaTVWHHqFyu4YGRs6A"; // keep your real key here
+const REGION = "CA";
+const YT_BASE = "https://www.googleapis.com/youtube/v3";
+const qs = (o)=>Object.entries(o).filter(([_,v])=>v!==undefined && v!==null && v!=='').map(([k,v])=>`${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&');
+
+// State
+let nextPageToken = null;
+let lastQuery = null; // {kind:'popular'|'search'|'chip', q?:string}
+let currentFilter = 'all'; // all|videos|channels
+let currentView = 'home'; // 'home' | 'channel'
+let channelCache = {}; // id -> {info, uploadsId}
+let channelNextToken = null;
+
+// DOM
+const grid = document.getElementById('grid');
+const loadMoreBtn = document.getElementById('loadMoreBtn');
+const searchForm = document.getElementById('searchForm');
+const searchInput = document.getElementById('searchInput');
+const chips = document.getElementById('chips');
+const filters = document.getElementById('filters');
+const modal = document.getElementById('playerModal');
+const closeModalBtn = document.getElementById('closeModal');
+const player = document.getElementById('player');
+const modalTitle = document.getElementById('modalTitle');
+const toast = document.getElementById('toast');
+const sidebar = document.getElementById('sidebar');
+
+function showToast(msg){
+  toast.textContent = msg; toast.classList.add('show');
+  clearTimeout(showToast._t); showToast._t = setTimeout(()=>toast.classList.remove('show'), 2200);
+}
+
+function parseISODuration(iso){
+  if(!iso || iso.indexOf('PT')!==0) return '';
+  iso = iso.substring(2);
+  let n = '', h=0, m=0, s=0;
+  for(let i=0;i<iso.length;i++){
+    const ch = iso[i];
+    if(ch>='0' && ch<='9'){ n += ch; }
+    else if(ch==='H'){ h = parseInt(n||'0',10); n=''; }
+    else if(ch==='M'){ m = parseInt(n||'0',10); n=''; }
+    else if(ch==='S'){ s = parseInt(n||'0',10); n=''; }
+  }
+  const pad = v=>String(v).padStart(2,'0');
+  return h? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+}
+function timeAgo(iso){
+  // Gracefully handle bad or missing dates
+  const ms = Date.parse(iso);
+  if(Number.isNaN(ms)) return '';
+  const t = Date.now() - ms;
+  const d = Math.max(0, t) / 1000;
+  const map = [[31536e3,'year'],[2592e3,'month'],[604800,'week'],[86400,'day'],[3600,'hour'],[60,'minute']];
+  for(const [s,l] of map){ const v = Math.floor(d/s); if(v>=1) return `${v} ${l}${v>1?'s':''} ago`; }
+  return 'just now';
+}
+
+// ---- Rendering (home) ----
+function videoCard(v, channelThumb){
+  const thumb=(v.snippet.thumbnails.maxres||v.snippet.thumbnails.high||v.snippet.thumbnails.medium||v.snippet.thumbnails.default).url;
+  const dur=v.contentDetails && v.contentDetails.duration ? `<span class="duration">${parseISODuration(v.contentDetails.duration)}</span>` : '';
+  const chThumb = channelThumb || '';
+  return `
+    <article class="card" data-type="video" data-id="${v.id && v.id.videoId ? v.id.videoId : v.id}">
+      <div class="thumb"><img loading="lazy" src="${thumb}" alt="${v.snippet.title.replace(/"/g,'&quot;')}">${dur}</div>
+      <div class="meta">
+        <div class="avatar">${chThumb?`<img src="${chThumb}" alt="">`:''}</div>
+        <div>
+          <div class="title">${v.snippet.title}</div>
+          <div class="muted">${v.snippet.channelTitle} · ${timeAgo(v.snippet.publishedAt)}</div>
+        </div>
+      </div>
+    </article>`
+}
+
+function channelCard(c){
+  const thumb=(c.snippet && c.snippet.thumbnails && (c.snippet.thumbnails.high||c.snippet.thumbnails.default) ? (c.snippet.thumbnails.high||c.snippet.thumbnails.default).url : '');
+  const subs = c.statistics ? (c.statistics.hiddenSubscriberCount ? 'Subscribers hidden' : (c.statistics.subscriberCount ? (Intl.NumberFormat().format(c.statistics.subscriberCount)+ ' subscribers') : '')) : '';
+  return `
+    <article class="channel-card" data-type="channel" data-id="${c.id}">
+      <div class="avatar"><img src="${thumb}" alt=""></div>
+      <div style="flex:1">
+        <div class="title">${c.snippet ? c.snippet.title : 'Channel'} <span class="badge">CHANNEL</span></div>
+        <div class="muted">${subs}</div>
+        <div class="muted">${c.snippet && c.snippet.description ? c.snippet.description.substring(0,120)+'…' : ''}</div>
+      </div>
+      <button class="btn" data-open-channel="${c.id}">View</button>
+    </article>`
+}
+
+function renderResults({videos, channels}, append=false){
+  const videoHtml = videos.items.map(v=> videoCard(v, videos.channelThumbs[v.snippet.channelId])).join('');
+  const channelHtml = channels.items.map(channelCard).join('');
+  let html = '';
+  if(currentFilter==='all') html = channelHtml + videoHtml; else if(currentFilter==='videos') html = videoHtml; else html = channelHtml;
+  if(append) grid.insertAdjacentHTML('beforeend', html); else grid.innerHTML = html;
+}
+
+// ---- Channel Page ----
+function renderChannelHeader(info){
+  const banner = (info.brandingSettings && info.brandingSettings.image && info.brandingSettings.image.bannerExternalUrl) || '';
+  const avatar = (info.snippet && info.snippet.thumbnails && (info.snippet.thumbnails.high||info.snippet.thumbnails.default) ? (info.snippet.thumbnails.high||info.snippet.thumbnails.default).url : '');
+  const title = info.snippet ? info.snippet.title : 'Channel';
+  const subs = info.statistics ? (info.statistics.hiddenSubscriberCount ? '' : (Intl.NumberFormat().format(info.statistics.subscriberCount)+' subscribers')) : '';
+  const desc = info.snippet && info.snippet.description ? info.snippet.description : '';
+  const safeDesc = desc ? desc.split('\n').join('<br>') : '';
+  return `
+    <div class="channel-header">
+      <div class="backlink" id="backHome">← Back</div>
+      <div class="channel-banner">${banner?`<img src="${banner}" alt="">`:''}</div>
+      <div class="channel-row">
+        <div class="channel-avatar"><img src="${avatar}" alt=""></div>
+        <div>
+          <div class="channel-title">${title}</div>
+          <div class="channel-sub">${subs}</div>
+        </div>
+      </div>
+      <div class="muted">${safeDesc}</div>
+    </div>`
+}
+
+async function openChannelPage(channelId){
+  currentView = 'channel';
+  location.hash = `#/channel/${channelId}`;
+  // hide home filters when inside channel
+  filters.style.display = 'none';
+  loadMoreBtn.hidden = true;
+  grid.innerHTML = '<div class="muted">Loading channel…</div>';
+
+  try{
+    // fetch channel details (snippet, branding, stats, contentDetails for uploads playlist)
+    let info = channelCache[channelId]?.info;
+    let uploadsId = channelCache[channelId]?.uploadsId;
+    if(!info){
+      const url = `${YT_BASE}/channels?${qs({key:API_KEY, part:'snippet,brandingSettings,statistics,contentDetails', id:channelId})}`;
+      const r = await fetch(url); if(!r.ok) throw new Error('channel error');
+      const d = await r.json(); info = d.items[0];
+      uploadsId = info && info.contentDetails && info.contentDetails.relatedPlaylists ? info.contentDetails.relatedPlaylists.uploads : null;
+      channelCache[channelId] = {info, uploadsId};
+    }
+
+    // render header
+    const headerHTML = renderChannelHeader(info);
+    grid.innerHTML = headerHTML + '<div class="grid" id="channelGrid"></div>';
+    const channelGrid = document.getElementById('channelGrid');
+
+    // back
+    const back = document.getElementById('backHome');
+    back.addEventListener('click', ()=>{ navigateHome(); });
+
+    // fetch uploads playlist items
+    if(uploadsId){
+      const urlPI = `${YT_BASE}/playlistItems?${qs({key:API_KEY, part:'snippet,contentDetails', playlistId:uploadsId, maxResults:24})}`;
+      const r2 = await fetch(urlPI); if(!r2.ok) throw new Error('uploads error');
+      const d2 = await r2.json();
+      channelNextToken = d2.nextPageToken || null;
+      channelGrid.innerHTML = d2.items.map(it=>{
+        const s = it.snippet || {}; const vid = it.contentDetails ? it.contentDetails.videoId : '';
+        const thumb = s.thumbnails && (s.thumbnails.maxres||s.thumbnails.high||s.thumbnails.medium||s.thumbnails.default) ? (s.thumbnails.maxres||s.thumbnails.high||s.thumbnails.medium||s.thumbnails.default).url : '';
+        const title = s.title || ''; const when = s.publishedAt || '';
+        return `
+          <article class="card" data-type="video" data-id="${vid}">
+            <div class="thumb"><img loading="lazy" src="${thumb}" alt="${title.replace(/"/g,'&quot;')}"></div>
+            <div class="meta">
+              <div class="avatar"></div>
+              <div>
+                <div class="title">${title}</div>
+                <div class="muted">${timeAgo(when)}</div>
+              </div>
+            </div>
+          </article>`;
+      }).join('');
+
+      // enable load more for channel
+      loadMoreBtn.hidden = !channelNextToken;
+      loadMoreBtn.onclick = async ()=>{
+        if(!channelNextToken) return;
+        const urlMore = `${YT_BASE}/playlistItems?${qs({key:API_KEY, part:'snippet,contentDetails', playlistId:uploadsId, maxResults:24, pageToken:channelNextToken})}`;
+        const r3 = await fetch(urlMore); if(!r3.ok) return;
+        const d3 = await r3.json();
+        channelNextToken = d3.nextPageToken || null;
+        const app = d3.items.map(it=>{
+          const s = it.snippet || {}; const vid = it.contentDetails ? it.contentDetails.videoId : '';
+          const thumb = s.thumbnails && (s.thumbnails.maxres||s.thumbnails.high||s.thumbnails.medium||s.thumbnails.default) ? (s.thumbnails.maxres||s.thumbnails.high||s.thumbnails.medium||s.thumbnails.default).url : '';
+          const title = s.title || ''; const when = s.publishedAt || '';
+          return `
+            <article class="card" data-type="video" data-id="${vid}">
+              <div class="thumb"><img loading="lazy" src="${thumb}" alt="${title.replace(/"/g,'&quot;')}"></div>
+              <div class="meta">
+                <div class="avatar"></div>
+                <div>
+                  <div class="title">${title}</div>
+                  <div class="muted">${timeAgo(when)}</div>
+                </div>
+              </div>
+            </article>`;
+        }).join('');
+        channelGrid.insertAdjacentHTML('beforeend', app);
+        loadMoreBtn.hidden = !channelNextToken;
+      };
+    } else {
+      loadMoreBtn.hidden = true;
+      channelGrid.innerHTML = '<div class="muted">No uploads found.</div>';
+    }
+  }catch(err){ console.error(err); showToast('Failed to load channel.'); }
+}
+
+function navigateHome(){
+  currentView = 'home';
+  location.hash = '#/';
+  filters.style.display = '';
+  // Re-render whatever we last had
+  if(window._lastData){ renderResults(window._lastData); }
+  loadMoreBtn.hidden = !nextPageToken;
+}
+
+// ---- API helpers (home) ----
+async function getPopular({pageToken}={}){
+  const url = `${YT_BASE}/videos?${qs({key:API_KEY, part:'snippet,contentDetails,statistics', chart:'mostPopular', maxResults:24, regionCode:REGION, pageToken})}`;
+  const r = await fetch(url); if(!r.ok) throw new Error('API error: '+r.status); const data = await r.json();
+  const channelIds = [...new Set(data.items.map(v=>v.snippet.channelId))].join(',');
+  let channelThumbs = {};
+  if(channelIds){
+    const r2 = await fetch(`${YT_BASE}/channels?${qs({key:API_KEY, part:'snippet', id:channelIds})}`);
+    const d2 = await r2.json();
+    channelThumbs = Object.fromEntries(d2.items.map(c=>[c.id, ((c.snippet.thumbnails && (c.snippet.thumbnails.default||c.snippet.thumbnails.high))||{}).url]));
+  }
+  return {videos:{items:data.items, channelThumbs}, channels:{items:[]}, nextPageToken:data.nextPageToken||null};
+}
+
+async function searchAll(q,{pageToken}={}){
+  const base = `${YT_BASE}/search?${qs({key:API_KEY, part:'snippet', type:'video,channel', q, maxResults:24, pageToken})}`;
+  const r = await fetch(base); if(!r.ok) throw new Error('API error: '+r.status);
+  const data = await r.json();
+  const videoItems = data.items.filter(i=>i.id && i.id.kind && i.id.kind.indexOf('video')>-1);
+  const channelItemsFromSearch = data.items.filter(i=>i.id && i.id.kind && i.id.kind.indexOf('channel')>-1);
+
+  let videos = {items:[], channelThumbs:{}};
+  if(videoItems.length){
+    const ids = videoItems.map(i=>i.id.videoId).join(',');
+    const r2 = await fetch(`${YT_BASE}/videos?${qs({key:API_KEY, part:'snippet,contentDetails', id:ids})}`);
+    const d2 = await r2.json();
+    const channelIds = [...new Set(d2.items.map(v=>v.snippet.channelId))].join(',');
+    let channelThumbs={};
+    if(channelIds){
+      const r3 = await fetch(`${YT_BASE}/channels?${qs({key:API_KEY, part:'snippet', id:channelIds})}`);
+      const d3 = await r3.json();
+      channelThumbs = Object.fromEntries(d3.items.map(c=>[c.id, ((c.snippet.thumbnails && (c.snippet.thumbnails.default||c.snippet.thumbnails.high))||{}).url]));
+    }
+    videos = {items:d2.items, channelThumbs};
+  }
+
+  let channels = {items:[]};
+  if(channelItemsFromSearch.length){
+    const ids = channelItemsFromSearch.map(i=>i.id.channelId).join(',');
+    const r4 = await fetch(`${YT_BASE}/channels?${qs({key:API_KEY, part:'snippet,statistics', id:ids})}`);
+    const d4 = await r4.json();
+    channels = {items:d4.items};
+  }
+  return {videos, channels, nextPageToken:data.nextPageToken||null};
+}
+
+// ---- Player ----
+function openPlayer({id,title}){ player.src = `https://www.youtube.com/embed/${id}?autoplay=1`; modalTitle.textContent = title||'Playing…'; modal.classList.add('open'); }
+function closePlayer(){ modal.classList.remove('open'); player.src=''; }
+
+// ---- Events ----
+grid.addEventListener('click',(e)=>{
+  const openBtn = e.target.closest('[data-open-channel]');
+  if(openBtn){ openChannelPage(openBtn.getAttribute('data-open-channel')); return; }
+  const card = e.target.closest('[data-type]'); if(!card) return;
+  const type = card.getAttribute('data-type');
+  if(type==='video'){
+    const id = card.getAttribute('data-id');
+    const title = card.querySelector('.title') ? card.querySelector('.title').textContent : '';
+    openPlayer({id,title});
+  } else if(type==='channel'){
+    const id = card.getAttribute('data-id');
+    openChannelPage(id);
+  }
+});
+
+closeModalBtn.addEventListener('click', closePlayer);
+modal.addEventListener('click', (e)=>{ if(e.target===modal) closePlayer(); });
+
+searchForm.addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const q = searchInput.value.trim(); if(!q) return;
+  filters.style.display = '';
+  currentView = 'home'; location.hash = '#/search';
+  grid.innerHTML=''; loadMoreBtn.hidden=true; nextPageToken=null; lastQuery={kind:'search', q};
+  try{ const data = await searchAll(q); window._lastData=data; renderResults(data); nextPageToken=data.nextPageToken; loadMoreBtn.hidden = !nextPageToken; }
+  catch(err){ console.error(err); showToast('Search failed.'); }
+});
+
+chips.addEventListener('click',(e)=>{
+  const btn=e.target.closest('.chip'); if(!btn) return;
+  for(const c of chips.querySelectorAll('.chip')) c.classList.remove('active');
+  btn.classList.add('active');
+  currentFilter = btn.dataset.filter;
+  if(window._lastData){ renderResults(window._lastData); }
+});
+
+sidebar.addEventListener('click', async (e)=>{
+  const a = e.target.closest('a[data-chip]'); if(!a) return; e.preventDefault();
+  const chip=a.dataset.chip; filters.style.display = '';
+  currentView='home'; location.hash = '#/'; grid.innerHTML=''; loadMoreBtn.hidden=true; nextPageToken=null;
+  try{
+    if(chip==='popular'){
+      lastQuery={kind:'popular'}; const data=await getPopular(); window._lastData=data; renderResults(data); nextPageToken=data.nextPageToken; loadMoreBtn.hidden=!nextPageToken;
+    }else{
+      const presets={music:'music official video',gaming:'gaming highlights',news:'breaking news',sports:'sports highlights',learning:'educational tutorials'};
+      const q=presets[chip]||chip; lastQuery={kind:'chip', q}; const data=await searchAll(q); window._lastData=data; renderResults(data); nextPageToken=data.nextPageToken; loadMoreBtn.hidden=!nextPageToken;
+    }
+  }catch(err){ console.error(err); showToast('Failed to load.'); }
+});
+
+loadMoreBtn.addEventListener('click', async ()=>{
+  if(currentView==='channel'){ if(typeof loadMoreBtn.onclick === 'function'){ loadMoreBtn.onclick(); } return; }
+  if(!lastQuery || !nextPageToken) return;
+  try{
+    let data;
+    if(lastQuery.kind==='popular') data = await getPopular({pageToken:nextPageToken});
+    else data = await searchAll(lastQuery.q,{pageToken:nextPageToken});
+    renderResults(data, true);
+    if(window._lastData){
+      window._lastData.videos.items.push(...data.videos.items);
+      Object.assign(window._lastData.videos.channelThumbs, data.videos.channelThumbs||{});
+      window._lastData.channels.items.push(...data.channels.items);
+    } else window._lastData = data;
+
+    nextPageToken = data.nextPageToken || null; loadMoreBtn.hidden = !nextPageToken;
+  }catch(err){ console.error(err); showToast('Could not load more.'); }
+});
+
+// Handle deep links like #/channel/ID
+window.addEventListener('hashchange', ()=>{
+  const h = location.hash;
+  const m = /^#\/channel\/([A-Za-z0-9_-]+)$/.exec(h);
+  if(m){ openChannelPage(m[1]); }
+  else if(h==='#/' || h==='' || h.startsWith('#/search')){ navigateHome(); }
+});
+
+// Initial load
+(async function init(){
+  try{ const data=await getPopular(); window._lastData=data; renderResults(data); nextPageToken=data.nextPageToken; loadMoreBtn.hidden=!nextPageToken; }
+  catch(err){ console.error(err); showToast('Could not load trending videos.'); }
+  // deep-link check
+  const h = location.hash; const m = /^#\/channel\/([A-Za-z0-9_-]+)$/.exec(h); if(m){ openChannelPage(m[1]); }
+
+  // ---- Smoke tests (non-intrusive) ----
+  try{
+    const t1 = parseISODuration('PT5M3S'); if(t1 !== '5:03') throw new Error('parseISODuration PT5M3S failed: '+t1);
+    const t2 = parseISODuration('PT1H2M3S'); if(t2 !== '1:02:03') throw new Error('parseISODuration PT1H2M3S failed: '+t2);
+    const ago = timeAgo(new Date().toISOString()); if(!(ago === 'just now' || /ago$/.test(ago))) throw new Error('timeAgo now failed: '+ago);
+    const descTest = 'a\nb'; const conv = descTest.split('\n').join('<br>'); if(conv !== 'a<br>b') throw new Error('desc newline conversion failed');
+    console.log('%cSmoke tests passed','color:lightgreen');
+  }catch(err){ console.error('Smoke tests failed:', err); }
+})();
+</script>
+</body>
+</html>
